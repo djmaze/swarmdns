@@ -1,0 +1,8 @@
+FROM golang:alpine
+
+RUN apk add --update --no-cache git
+
+ENV DAPPER_SOURCE /go/src/github.com/djmaze/wilddns
+WORKDIR ${DAPPER_SOURCE}
+
+ENTRYPOINT ["./build"]
