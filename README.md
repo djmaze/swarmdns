@@ -1,54 +1,85 @@
-# WildDNS
+# SwarmDNS
 
-A tiny dockerized DNS server which always returns the same IP(s).
+A tiny dockerized DNS service for Docker swarm mode. It always returns the IP(s) of all active swarm nodes.
+
+That makes it easy to host an arbitrary number of swarm services on a subdomain. Just add an `NS` record for the chosen subdomain for _every manager node_ in the swarm.
+
+As the service works on manager nodes only, you should have more than one manager node for fail-safe operation.
 
 ## Quickstart
 
 ```bash
-$ docker run -d --name wilddns -p 53:53/udp mazzolino/wilddns --log 192.168.1.230 192.168.1.231 192.168.1.232
+$ docker service create --name swarmdns \
+                        -p 53:53/udp \
+                        --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock,readonly \
+                        --constraint "node.role == manager" \
+                        mazzolino/swarmdns
 ```
 
-Testing:
+Alternatively, deploy the service stack definition supplied in this repository:
 
 ```bash
-$ dig +short my.example.host @localhost
+docker stack deploy --compose-file docker-compose.yml swarmdns
+```
+
+### Testing
+
+With a cluster of 3 nodes:
+
+```bash
+$ docker node ls
+ID                            HOSTNAME            STATUS              AVAILABILITY        MANAGER STATUS
+4mqk9wohilllRkj7zppwie18h     swarm3              Ready               Active              Reachable
+hhv80nx8r2jadchRohk4h3pfx *   swarm2              Ready               Active              Reachable
+xx4zcnjnr80yletg4pnx00b4n     swarm1              Ready               Active              Leader
+```
+
+Here's the output:
+
+```bash
+$ dig +short my.example.host @<IP OF ANY SWARM NODE>
 192.168.1.230
 192.168.1.231
 192.168.1.232
-$ dig +short another.example.host @localhost
+$ dig +short another.example.host @<IP OF ANY SWARM NODE>
 192.168.1.231
 192.168.1.232
 192.168.1.230
 ```
 
-## Details
+## How it works
 
-WildDNS will answer requests for `A` records only. It will always return __all__ IP addresses given on the commandline, in random order.
+SwarmDNS will answer requests for `A` records only. It will always return the IP addresses of __all active nodes__ in the swarm, in random order. (The `AVAILABILITY` column in `docker node ls` shows which nodes are currently `Active`.)
+
+The list of active nodes is refreshed once a minute. The TTL of the returned records is also set to 60 seconds.
+
+### Options
 
 When given the `--log` flag, every matching request will be logged to STDOUT. Example:
 
-    2017-06-19_20:08:41     172.17.0.1      my.example.host.
-    2017-06-19_20:08:53     172.17.0.1      another.example.host.
+    Request:   172.17.0.1      my.example.host.
+    Request:   172.17.0.1      another.example.host.
 
 ## Development
 
 ### Prerequisites
 
-The following tools have to be installed in order to build this:
-
 * Docker
-* The [dapper](https://github.com/rancher/dapper) binary needs to be available in your `PATH`.
+* Docker-Compose
 
 ### Building
 
-Run `make`. It builds a docker image `mazzolino/wilddns` by default.
+Just run `docker-compose build`. It builds a docker image `mazzolino/swarmdns` by default.
 
-Available build targets:
+### Testing
 
-* `wilddns`: build static wilddns binary
-* `image` (default): build Docker image. Optionally set image name via `make IMAGE=my-image-name`
-* `push`: push Docker image to Docker registry hub
+(Only works if your host is a swarm manager node.)
+
+```bash
+$ docker-compose up -d
+$ dig foo.bar @localhost
+```
 
 ## Credits
 
-The code structure was adopted from [microdns](https://github.com/fffaraz/microdns). Thanks!
+This is a fork of [WildDNS](https://github.com/djmaze/wilddns). The code structure was originally adopted from [microdns](https://github.com/fffaraz/microdns). Thanks!

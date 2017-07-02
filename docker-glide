@@ -1,0 +1,3 @@
+#!/bin/sh
+docker run -it --rm -v "$PWD:/go/src/github.com/djmaze/swarmdns" -w /go/src/github.com/djmaze/swarmdns golang:1.8-alpine \
+  sh -c "apk add --update git glide && glide \"$*\""
