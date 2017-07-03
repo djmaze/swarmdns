@@ -16,24 +16,24 @@ type Client interface {
 }
 
 type swarmClient struct {
-	api *dockerclient.Client
+  api *dockerclient.Client
 }
 
 func NewClient() (Client, error) {
-	cli, err := dockerclient.NewEnvClient()
-	if err != nil {
-		return nil, err
-	}
+  cli, err := dockerclient.NewEnvClient()
+  if err != nil {
+    return nil, err
+  }
 
-	return swarmClient{api: cli}, nil
+  return swarmClient{api: cli}, nil
 }
 
 func (client swarmClient) ListActiveNodeIPs() ([]string, error) {
   var listOptions types.NodeListOptions
   nodes, err := client.api.NodeList(context.Background(), listOptions)
-	if err != nil {
-		return nil, err
-	}
+  if err != nil {
+    return nil, err
+  }
 
   var ips []string
   for _, node := range nodes {
