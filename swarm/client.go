@@ -1,7 +1,6 @@
 package swarm
 
 import (
-  //"net"
   "strings"
 
   "github.com/docker/docker/api/types"
@@ -54,21 +53,6 @@ func (client swarmClient) ListActiveNodeIPs() ([]string, error) {
 
   return ips, nil
 }
-
-// Get preferred outbound ip of this machine
-// (see https://stackoverflow.com/a/37382208/3515146)
-//func getOutboundIP() (string, error) {
-    //conn, err := net.Dial("udp", "8.8.8.8:80")
-    //if err != nil {
-      //return "", err
-    //}
-    //defer conn.Close()
-
-    //localAddr := conn.LocalAddr().String()
-    //idx := strings.LastIndex(localAddr, ":")
-
-    //return localAddr[0:idx], nil
-//}
 
 func getIPFromAddr(addr string) string {
   ipAndPort := strings.Split(addr, ":")
