@@ -79,9 +79,8 @@ func handleRequest(w dns.ResponseWriter, r *dns.Msg) {
       logger.Printf("Request: %15s %s", ip, domain)
     }
 
-    var rrs = make([]dns.RR, len(ips))
-
     mutex.Lock()
+    var rrs = make([]dns.RR, len(ips))
     for i, ip := range ips {
       rr := new(dns.A)
       rr.Hdr = dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: uint32(TTL)}
