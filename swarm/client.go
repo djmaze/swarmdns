@@ -37,7 +37,9 @@ func (client swarmClient) ListActiveNodeIPs() ([]string, error) {
   var ips []string
   for _, node := range nodes {
     if node.Status.State == swarm.NodeStateReady {
-      if node.Status.Addr == "0.0.0.0" {
+			if publicIp, ok := node.Spec.Annotations.Labels["public-ip"]; ok {
+				ips = append(ips, publicIp)
+			} else if node.Status.Addr == "0.0.0.0" {
 
         leaderIp := getIPFromAddr(node.ManagerStatus.Addr)
         if err != nil {
