@@ -1,4 +1,4 @@
-FROM golang:1.12-alpine AS builder
+FROM golang:1.18-alpine AS builder
 WORKDIR /go/src/github.com/djmaze/swarmdns
 COPY . .
 RUN CGO_ENABLED=0 go build --ldflags "-s"

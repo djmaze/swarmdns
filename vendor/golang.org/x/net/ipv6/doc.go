@@ -8,7 +8,7 @@
 // The package provides IP-level socket options that allow
 // manipulation of IPv6 facilities.
 //
-// The IPv6 protocol is defined in RFC 2460.
+// The IPv6 protocol is defined in RFC 8200.
 // Socket interface extensions are defined in RFC 3493, RFC 3542 and
 // RFC 3678.
 // MLDv1 and MLDv2 are defined in RFC 2710 and RFC 3810.
@@ -17,8 +17,7 @@
 // On Darwin, this package requires OS X Mavericks version 10.9 or
 // above, or equivalent.
 //
-//
-// Unicasting
+// # Unicasting
 //
 // The options for unicasting are available for net.TCPConn,
 // net.UDPConn and net.IPConn which are created as network connections
@@ -52,11 +51,10 @@
 //		}(c)
 //	}
 //
-//
-// Multicasting
+// # Multicasting
 //
 // The options for multicasting are available for net.UDPConn and
-// net.IPconn which are created as network connections that use the
+// net.IPConn which are created as network connections that use the
 // IPv6 transport. A few network facilities must be prepared before
 // you begin multicasting, at a minimum joining network interfaces and
 // multicast groups.
@@ -140,8 +138,7 @@
 //		}
 //	}
 //
-//
-// More multicasting
+// # More multicasting
 //
 // An application that uses PacketConn may join multiple multicast
 // groups. For example, a UDP listener with port 1024 might join two
@@ -199,8 +196,7 @@
 //		// error handling
 //	}
 //
-//
-// Source-specific multicasting
+// # Source-specific multicasting
 //
 // An application that uses PacketConn on MLDv2 supported platform is
 // able to join source-specific multicast groups.
@@ -240,4 +236,4 @@
 // IncludeSourceSpecificGroup may return an error.
 package ipv6 // import "golang.org/x/net/ipv6"
 
-// BUG(mikio): This package is not implemented on NaCl and Plan 9.
+// BUG(mikio): This package is not implemented on JS, NaCl and Plan 9.

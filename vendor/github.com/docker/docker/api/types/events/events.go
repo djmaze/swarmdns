@@ -1,6 +1,8 @@
-package events
+package events // import "github.com/docker/docker/api/types/events"
 
 const (
+	// BuilderEventType is the event type that the builder generates
+	BuilderEventType = "builder"
 	// ContainerEventType is the event type that containers generate
 	ContainerEventType = "container"
 	// DaemonEventType is the event type that daemon generate
@@ -19,6 +21,8 @@ const (
 	NodeEventType = "node"
 	// SecretEventType is the event type that secrets generate
 	SecretEventType = "secret"
+	// ConfigEventType is the event type that configs generate
+	ConfigEventType = "config"
 )
 
 // Actor describes something that generates events,

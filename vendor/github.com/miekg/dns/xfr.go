@@ -17,11 +17,22 @@ type Transfer struct {
 	DialTimeout    time.Duration     // net.DialTimeout, defaults to 2 seconds
 	ReadTimeout    time.Duration     // net.Conn.SetReadTimeout value for connections, defaults to 2 seconds
 	WriteTimeout   time.Duration     // net.Conn.SetWriteTimeout value for connections, defaults to 2 seconds
-	TsigSecret     map[string]string // Secret(s) for Tsig map[<zonename>]<base64 secret>, zonename must be fully qualified
+	TsigProvider   TsigProvider      // An implementation of the TsigProvider interface. If defined it replaces TsigSecret and is used for all TSIG operations.
+	TsigSecret     map[string]string // Secret(s) for Tsig map[<zonename>]<base64 secret>, zonename must be in canonical form (lowercase, fqdn, see RFC 4034 Section 6.2)
 	tsigTimersOnly bool
 }
 
-// Think we need to away to stop the transfer
+func (t *Transfer) tsigProvider() TsigProvider {
+	if t.TsigProvider != nil {
+		return t.TsigProvider
+	}
+	if t.TsigSecret != nil {
+		return tsigSecretProvider(t.TsigSecret)
+	}
+	return nil
+}
+
+// TODO: Think we need to away to stop the transfer
 
 // In performs an incoming transfer with the server in a.
 // If you would like to set the source IP, or some other attribute
@@ -35,34 +46,40 @@ type Transfer struct {
 //	channel, err := transfer.In(message, master)
 //
 func (t *Transfer) In(q *Msg, a string) (env chan *Envelope, err error) {
+	switch q.Question[0].Qtype {
+	case TypeAXFR, TypeIXFR:
+	default:
+		return nil, &Error{"unsupported question type"}
+	}
+
 	timeout := dnsTimeout
 	if t.DialTimeout != 0 {
 		timeout = t.DialTimeout
 	}
+
 	if t.Conn == nil {
 		t.Conn, err = DialTimeout("tcp", a, timeout)
 		if err != nil {
 			return nil, err
 		}
 	}
+
 	if err := t.WriteMsg(q); err != nil {
 		return nil, err
 	}
+
 	env = make(chan *Envelope)
-	go func() {
-		if q.Question[0].Qtype == TypeAXFR {
-			go t.inAxfr(q.Id, env)
-			return
-		}
-		if q.Question[0].Qtype == TypeIXFR {
-			go t.inIxfr(q.Id, env)
-			return
-		}
-	}()
+	switch q.Question[0].Qtype {
+	case TypeAXFR:
+		go t.inAxfr(q, env)
+	case TypeIXFR:
+		go t.inIxfr(q, env)
+	}
+
 	return env, nil
 }
 
-func (t *Transfer) inAxfr(id uint16, c chan *Envelope) {
+func (t *Transfer) inAxfr(q *Msg, c chan *Envelope) {
 	first := true
 	defer t.Close()
 	defer close(c)
@@ -77,7 +94,7 @@ func (t *Transfer) inAxfr(id uint16, c chan *Envelope) {
 			c <- &Envelope{nil, err}
 			return
 		}
-		if id != in.Id {
+		if q.Id != in.Id {
 			c <- &Envelope{in.Answer, ErrId}
 			return
 		}
@@ -110,9 +127,11 @@ func (t *Transfer) inAxfr(id uint16, c chan *Envelope) {
 	}
 }
 
-func (t *Transfer) inIxfr(id uint16, c chan *Envelope) {
-	serial := uint32(0) // The first serial seen is the current server serial
-	first := true
+func (t *Transfer) inIxfr(q *Msg, c chan *Envelope) {
+	var serial uint32 // The first serial seen is the current server serial
+	axfr := true
+	n := 0
+	qser := q.Ns[0].(*SOA).Serial
 	defer t.Close()
 	defer close(c)
 	timeout := dnsTimeout
@@ -126,21 +145,15 @@ func (t *Transfer) inIxfr(id uint16, c chan *Envelope) {
 			c <- &Envelope{nil, err}
 			return
 		}
-		if id != in.Id {
+		if q.Id != in.Id {
 			c <- &Envelope{in.Answer, ErrId}
 			return
 		}
-		if first {
-			if in.Rcode != RcodeSuccess {
-				c <- &Envelope{in.Answer, &Error{err: fmt.Sprintf(errXFR, in.Rcode)}}
-				return
-			}
-			// A single SOA RR signals "no changes"
-			if len(in.Answer) == 1 && isSOAFirst(in) {
-				c <- &Envelope{in.Answer, nil}
-				return
-			}
-
+		if in.Rcode != RcodeSuccess {
+			c <- &Envelope{in.Answer, &Error{err: fmt.Sprintf(errXFR, in.Rcode)}}
+			return
+		}
+		if n == 0 {
 			// Check if the returned answer is ok
 			if !isSOAFirst(in) {
 				c <- &Envelope{in.Answer, ErrSoa}
@@ -148,21 +161,30 @@ func (t *Transfer) inIxfr(id uint16, c chan *Envelope) {
 			}
 			// This serial is important
 			serial = in.Answer[0].(*SOA).Serial
-			first = !first
+			// Check if there are no changes in zone
+			if qser >= serial {
+				c <- &Envelope{in.Answer, nil}
+				return
+			}
 		}
-
 		// Now we need to check each message for SOA records, to see what we need to do
-		if !first {
-			t.tsigTimersOnly = true
-			// If the last record in the IXFR contains the servers' SOA,  we should quit
-			if v, ok := in.Answer[len(in.Answer)-1].(*SOA); ok {
+		t.tsigTimersOnly = true
+		for _, rr := range in.Answer {
+			if v, ok := rr.(*SOA); ok {
 				if v.Serial == serial {
-					c <- &Envelope{in.Answer, nil}
-					return
+					n++
+					// quit if it's a full axfr or the the servers' SOA is repeated the third time
+					if axfr && n == 2 || n == 3 {
+						c <- &Envelope{in.Answer, nil}
+						return
+					}
+				} else if axfr {
+					// it's an ixfr
+					axfr = false
 				}
 			}
-			c <- &Envelope{in.Answer, nil}
 		}
+		c <- &Envelope{in.Answer, nil}
 	}
 }
 
@@ -171,14 +193,17 @@ func (t *Transfer) inIxfr(id uint16, c chan *Envelope) {
 //
 //	ch := make(chan *dns.Envelope)
 //	tr := new(dns.Transfer)
-//	go tr.Out(w, r, ch)
+//	var wg sync.WaitGroup
+//	go func() {
+//		tr.Out(w, r, ch)
+//		wg.Done()
+//	}()
 //	ch <- &dns.Envelope{RR: []dns.RR{soa, rr1, rr2, rr3, soa}}
 //	close(ch)
-//	w.Hijack()
-//	// w.Close() // Client closes connection
+//	wg.Wait() // wait until everything is written out
+//	w.Close() // close connection
 //
-// The server is responsible for sending the correct sequence of RRs through the
-// channel ch.
+// The server is responsible for sending the correct sequence of RRs through the channel ch.
 func (t *Transfer) Out(w ResponseWriter, q *Msg, ch chan *Envelope) error {
 	for x := range ch {
 		r := new(Msg)
@@ -187,11 +212,14 @@ func (t *Transfer) Out(w ResponseWriter, q *Msg, ch chan *Envelope) error {
 		r.Authoritative = true
 		// assume it fits TODO(miek): fix
 		r.Answer = append(r.Answer, x.RR...)
+		if tsig := q.IsTsig(); tsig != nil && w.TsigStatus() == nil {
+			r.SetTsig(tsig.Hdr.Name, tsig.Algorithm, tsig.Fudge, time.Now().Unix())
+		}
 		if err := w.WriteMsg(r); err != nil {
 			return err
 		}
+		w.TsigTimersOnly(true)
 	}
-	w.TsigTimersOnly(true)
 	return nil
 }
 
@@ -207,12 +235,9 @@ func (t *Transfer) ReadMsg() (*Msg, error) {
 	if err := m.Unpack(p); err != nil {
 		return nil, err
 	}
-	if ts := m.IsTsig(); ts != nil && t.TsigSecret != nil {
-		if _, ok := t.TsigSecret[ts.Hdr.Name]; !ok {
-			return m, ErrSecret
-		}
+	if ts, tp := m.IsTsig(), t.tsigProvider(); ts != nil && tp != nil {
 		// Need to work on the original message p, as that was used to calculate the tsig.
-		err = TsigVerify(p, t.TsigSecret[ts.Hdr.Name], t.tsigRequestMAC, t.tsigTimersOnly)
+		err = tsigVerifyProvider(p, tp, t.tsigRequestMAC, t.tsigTimersOnly)
 		t.tsigRequestMAC = ts.MAC
 	}
 	return m, err
@@ -221,35 +246,26 @@ func (t *Transfer) ReadMsg() (*Msg, error) {
 // WriteMsg writes a message through the transfer connection t.
 func (t *Transfer) WriteMsg(m *Msg) (err error) {
 	var out []byte
-	if ts := m.IsTsig(); ts != nil && t.TsigSecret != nil {
-		if _, ok := t.TsigSecret[ts.Hdr.Name]; !ok {
-			return ErrSecret
-		}
-		out, t.tsigRequestMAC, err = TsigGenerate(m, t.TsigSecret[ts.Hdr.Name], t.tsigRequestMAC, t.tsigTimersOnly)
+	if ts, tp := m.IsTsig(), t.tsigProvider(); ts != nil && tp != nil {
+		out, t.tsigRequestMAC, err = tsigGenerateProvider(m, tp, t.tsigRequestMAC, t.tsigTimersOnly)
 	} else {
 		out, err = m.Pack()
 	}
 	if err != nil {
 		return err
 	}
-	if _, err = t.Write(out); err != nil {
-		return err
-	}
-	return nil
+	_, err = t.Write(out)
+	return err
 }
 
 func isSOAFirst(in *Msg) bool {
-	if len(in.Answer) > 0 {
-		return in.Answer[0].Header().Rrtype == TypeSOA
-	}
-	return false
+	return len(in.Answer) > 0 &&
+		in.Answer[0].Header().Rrtype == TypeSOA
 }
 
 func isSOALast(in *Msg) bool {
-	if len(in.Answer) > 0 {
-		return in.Answer[len(in.Answer)-1].Header().Rrtype == TypeSOA
-	}
-	return false
+	return len(in.Answer) > 0 &&
+		in.Answer[len(in.Answer)-1].Header().Rrtype == TypeSOA
 }
 
 const errXFR = "bad xfr rcode: %d"

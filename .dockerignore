@@ -1,1 +1,4 @@
-Dockerfile
+/.git
+/Dockerfile
+/docker-compose.yml
+/swarmdns
