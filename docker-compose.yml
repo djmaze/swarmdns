@@ -6,9 +6,7 @@ services:
     image: mazzolino/swarmdns
     ports:
       - 53:53/udp
-    command: --log
-    # in 17.06
-    #network_mode: host
+    command: --log --domain swm.example.com --domain anotherswm.example.com
     network_mode: bridge
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

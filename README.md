@@ -14,6 +14,7 @@ $ docker service create --name swarmdns \
                         --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock,readonly \
                         --constraint "node.role == manager" \
                         mazzolino/swarmdns
+                        --domain swarm.example.com
 ```
 
 Alternatively, deploy the service stack definition supplied in this repository:
@@ -37,11 +38,11 @@ xx4zcnjnr80yletg4pnx00b4n     swarm1              Ready               Active    
 Here's the output:
 
 ```bash
-$ dig +short my.example.host @<IP OF ANY SWARM NODE>
+$ dig +short foo.swarm.example.com @<IP OF ANY SWARM NODE>
 192.168.1.230
 192.168.1.231
 192.168.1.232
-$ dig +short another.example.host @<IP OF ANY SWARM NODE>
+$ dig +short bar.swarm.example.com @<IP OF ANY SWARM NODE>
 192.168.1.231
 192.168.1.232
 192.168.1.230
@@ -49,7 +50,7 @@ $ dig +short another.example.host @<IP OF ANY SWARM NODE>
 
 ## How it works
 
-SwarmDNS will answer requests for `A` records only. It will always return the IP addresses of __all active nodes__ in the swarm, in random order. (The `AVAILABILITY` column in `docker node ls` shows which nodes are currently `Active`.)
+SwarmDNS will answer requests for `A` records only, and only for names in the domains specified at the commandline. It will always return the IP addresses of __all active nodes__ in the swarm, in random order. (The `AVAILABILITY` column in `docker node ls` shows which nodes are currently `Active`.)
 
 The list of active nodes is refreshed once a minute. The TTL of the returned records is also set to 60 seconds.
 
@@ -57,8 +58,8 @@ The list of active nodes is refreshed once a minute. The TTL of the returned rec
 
 When given the `--log` flag, every matching request will be logged to STDOUT. Example:
 
-    Request:   172.17.0.1      my.example.host.
-    Request:   172.17.0.1      another.example.host.
+    Request:   172.17.0.1      foo.swarm.example.com.
+    Request:   172.17.0.1      bar.swarm.example.com.
 
 ## Development
 
@@ -77,7 +78,7 @@ Just run `docker-compose build`. It builds a docker image `mazzolino/swarmdns` b
 
 ```bash
 $ docker-compose up -d
-$ dig foo.bar @localhost
+$ dig foo.swarm.example.com @localhost
 ```
 
 ## Credits
