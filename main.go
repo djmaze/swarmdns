@@ -34,15 +34,18 @@ const TTL = NodeRefreshInterval
 var logger *log.Logger
 var client swarm.Client
 var logflag bool
+var rateLimit int64
 var nodes []swarm.SwarmNode
 var mutex = &sync.Mutex{}
 var swarmDomains arrayFlags
 
 func main() {
 	var err error
+	var handler dns.HandlerFunc
 
-	flag.BoolVar(&logflag, "log", false, "Log requests to stdout")
 	flag.Var(&swarmDomains, "domain", "[required] Domain to resolve addresses for (can be specified multiple times)")
+	flag.BoolVar(&logflag, "log", false, "Log requests to stdout")
+	flag.Int64Var(&rateLimit, "rate-limit", 0, "Number of simultaneous requests being worked on")
 	flag.Parse()
 
 	if len(swarmDomains) == 0 {
@@ -54,6 +57,10 @@ func main() {
 	logger = log.New(os.Stderr, "", 0)
 
 	logger.Printf("Using domains: %v", swarmDomains)
+
+	if rateLimit > 0 {
+		logger.Printf("Limiting the number of simultaneous requests to %d", rateLimit)
+	}
 
 	client, err = swarm.NewClient()
 	if err != nil {
@@ -70,10 +77,19 @@ func main() {
 		}
 	}()
 
-	dns.HandleFunc(".", handleRequest)
+	if rateLimit > 0 {
+		limit := make(chan struct{}, rateLimit)
+		handler = dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
+			limit <- struct{}{}
+			defer func() { <-limit }()
+			handleRequest(w, r)
+		})
+	} else {
+		handler = dns.HandlerFunc(handleRequest)
+	}
 
 	go func() {
-		srv := &dns.Server{Addr: ":53", Net: "udp"}
+		srv := &dns.Server{Addr: ":53", Net: "udp", Handler: handler}
 		err := srv.ListenAndServe()
 		if err != nil {
 			logger.Fatalf("Failed to set udp listener %s\n", err.Error())
