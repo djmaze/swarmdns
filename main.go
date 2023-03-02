@@ -34,7 +34,7 @@ const TTL = NodeRefreshInterval
 var logger *log.Logger
 var client swarm.Client
 var logflag bool
-var ips []string
+var nodes []swarm.SwarmNode
 var mutex = &sync.Mutex{}
 var swarmDomains arrayFlags
 
@@ -60,13 +60,13 @@ func main() {
 		panic(err)
 	}
 
-	refreshNodeIPs()
+	refreshNodes()
 
 	// Get IPs on every interval
 	ticker := time.NewTicker(time.Second * NodeRefreshInterval)
 	go func() {
 		for range ticker.C {
-			refreshNodeIPs()
+			refreshNodes()
 		}
 	}()
 
@@ -116,22 +116,28 @@ func handleRequest(w dns.ResponseWriter, r *dns.Msg) {
 			logger.Printf("Request: %15s %s", ip, domain)
 		}
 
-		mutex.Lock()
-		var rrs = make([]dns.RR, len(ips))
-		for i, ip := range ips {
-			rr := new(dns.A)
-			rr.Hdr = dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: uint32(TTL)}
-			rr.A = net.ParseIP(ip)
-			rrs[i] = rr
-		}
-		mutex.Unlock()
-
-		m.Answer = shuffleRRs(rrs)
+		m.Answer = answerForNodes(domain)
 	} else {
 		m.Answer = []dns.RR{}
 	}
 
 	w.WriteMsg(m)
+}
+
+func answerForNodes(domain string) []dns.RR {
+	mutex.Lock()
+	var rrs []dns.RR
+	for _, node := range nodes {
+		if node.IsManager {
+			rr := new(dns.A)
+			rr.Hdr = dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: uint32(TTL)}
+			rr.A = net.ParseIP(node.Ip)
+			rrs = append(rrs, rr)
+		}
+	}
+	mutex.Unlock()
+
+	return shuffleRRs(rrs)
 }
 
 func shuffleRRs(src []dns.RR) []dns.RR {
@@ -143,12 +149,12 @@ func shuffleRRs(src []dns.RR) []dns.RR {
 	return dest
 }
 
-func refreshNodeIPs() {
+func refreshNodes() {
 	var err error
 
 	mutex.Lock()
-	ips, err = client.ListActiveNodeIPs()
-	logger.Printf("Refreshed node IPs: %v\n", ips)
+	nodes, err = client.ListActiveNodes()
+	logger.Printf("Refreshed nodes: %v\n", nodes)
 	mutex.Unlock()
 	if err != nil {
 		panic(err)
