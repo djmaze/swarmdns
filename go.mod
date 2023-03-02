@@ -3,9 +3,9 @@ module github.com/djmaze/swarmdns
 go 1.18
 
 require (
-	github.com/docker/docker v20.10.14+incompatible
-	github.com/miekg/dns v1.1.48
-	golang.org/x/net v0.0.0-20220425223048-2871e0cb64e4
+	github.com/docker/docker v23.0.1+incompatible
+	github.com/miekg/dns v1.1.51
+	golang.org/x/net v0.7.0
 )
 
 require (
@@ -22,9 +22,9 @@ require (
 	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
-	golang.org/x/sys v0.0.0-20220429233432-b5fbb4746d32 // indirect
-	golang.org/x/tools v0.1.10 // indirect
+	golang.org/x/mod v0.7.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/tools v0.3.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
 	google.golang.org/grpc v1.46.0 // indirect
