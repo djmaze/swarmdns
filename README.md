@@ -56,11 +56,14 @@ The list of active nodes is refreshed once a minute. The TTL of the returned rec
 
 ### Options
 
+The domains to return results for need to be specified using the `--domain` flag (e.g. `-domain swarm.example.com`).
+
 When given the `--log` flag, every matching request will be logged to STDOUT. Example:
 
     Request:   172.17.0.1      foo.swarm.example.com.
     Request:   172.17.0.1      bar.swarm.example.com.
 
+When using `--rate-limit xxx`, the number of simultaneous requests being worked on is limited to `xxx`. That means additional requests being sent in parallel will be delayed.
 ## Development
 
 ### Prerequisites
