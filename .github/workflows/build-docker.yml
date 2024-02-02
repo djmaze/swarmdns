@@ -39,11 +39,11 @@ jobs:
 
       - name: Set feature tag
         if: ${{ startsWith(github.ref, 'refs/heads/feature/') }}
-        run: echo DOCKER_TAG=$(echo ${{ github.ref }} | sed 's|refs/heads/||g | sed 's|/|-|g') >> ${GITHUB_ENV}
+        run: echo DOCKER_TAG=$(echo ${{ github.ref }} | sed 's|refs/heads/||g' | sed 's|/|-|g') >> ${GITHUB_ENV}
 
       - name: Set versioned tag
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
-        run: echo DOCKER_TAG=$(echo ${{ github.ref }} | sed 's|refs/tags/||g) >> ${GITHUB_ENV}
+        run: echo DOCKER_TAG=$(echo ${{ github.ref }} | sed 's|refs/tags/||g') >> ${GITHUB_ENV}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v2
