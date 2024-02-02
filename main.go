@@ -38,6 +38,7 @@ var rateLimit int64
 var nodes []swarm.SwarmNode
 var mutex = &sync.Mutex{}
 var swarmDomains arrayFlags
+var retWorkersRecords bool
 
 func main() {
 	var err error
@@ -46,6 +47,7 @@ func main() {
 	flag.Var(&swarmDomains, "domain", "[required] Domain to resolve addresses for (can be specified multiple times)")
 	flag.BoolVar(&logflag, "log", false, "Log requests to stdout")
 	flag.Int64Var(&rateLimit, "rate-limit", 0, "Number of simultaneous requests being worked on")
+	flag.BoolVar(&retWorkersRecords, "return-workers", false, "Return records for worker nodes")
 	flag.Parse()
 
 	if len(swarmDomains) == 0 {
@@ -144,7 +146,7 @@ func answerForNodes(domain string) []dns.RR {
 	mutex.Lock()
 	var rrs []dns.RR
 	for _, node := range nodes {
-		if node.IsManager {
+		if node.IsManager || retWorkersRecords {
 			rr := new(dns.A)
 			rr.Hdr = dns.RR_Header{Name: domain, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: uint32(TTL)}
 			rr.A = net.ParseIP(node.Ip)
