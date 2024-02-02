@@ -11,6 +11,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  DOCKER_TAG: latest
 
 jobs:
   build:
@@ -33,10 +34,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set latest tag
-        if: ${{ github.ref == 'refs/heads/master' }}
-        run: echo DOCKER_TAG=latest >> ${GITHUB_ENV}
-
       - name: Set feature tag
         if: ${{ startsWith(github.ref, 'refs/heads/feature/') }}
         run: echo DOCKER_TAG=$(echo ${{ github.ref }} | sed 's|refs/heads/||g' | sed 's|/|-|g') >> ${GITHUB_ENV}
@@ -51,7 +48,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}
+            ghcr.io/${{ github.repository }}:${{ env.DOCKER_TAG }}
           platforms: |
             linux/amd64
             linux/arm64
